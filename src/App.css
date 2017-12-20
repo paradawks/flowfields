@@ -1,0 +1,27 @@
+#configForm {
+  padding: 10px;
+}
+
+.form-control {
+  padding: 0 5px;
+}
+
+.form-group {
+  margin-bottom: 0;
+}
+
+.form-group button {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.col-form-label {
+  padding-top: 0;
+}
+
+.sketch-picker {
+  border: none !important;
+  box-shadow: none !important;;
+  padding: 0 !important;;
+  margin: 10px !important;;
+}
