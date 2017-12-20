@@ -55,9 +55,10 @@ class App extends Component {
 
   updateSketchConfig(config) {
     const newConfig = {
-      color1: convertColor(config.color1, config.colorAlpha),
-      color2: convertColor(config.color2, config.colorAlpha),
+      // color1: convertColor(config.color1, config.colorAlpha),
+      // color2: convertColor(config.color2, config.colorAlpha),
       ...config,
+      redraw: Math.floor( Math.random() * 9999999999),
     };
     this.setState(newConfig);
   }
@@ -68,7 +69,6 @@ class App extends Component {
       ...config,
       color1: convertColor(config.color1, config.colorAlpha),
       color2: convertColor(config.color2, config.colorAlpha),
-      redraw: Math.floor( Math.random() * 9999999999),
     };
     return newConfig;
   }
