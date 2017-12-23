@@ -120,7 +120,7 @@ export default function flowfieldSketch (p) {
     triggerRecalc(prevProps || {}, props);
 
     const newWidth = parseInt(props.canvasWidth, 10);
-    const newHeight = parseInt(props.canvasWidth, 10);
+    const newHeight = parseInt(props.canvasHeight, 10);
     if ( width !== newWidth || height !== newHeight ) {
       width = newWidth;
       height = newHeight;
