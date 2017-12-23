@@ -8,9 +8,12 @@ export default function flowfieldSketch (p) {
   let outer;
 
   let particleCount;
+  let particleExpire;
 
   let flowCellSize;
   let flowAccuracy;
+  let flowDrift;
+  let flowDriftScale;
   let noiseScale;
   let noiseRadius;
   let noiseSeed;
@@ -28,17 +31,32 @@ export default function flowfieldSketch (p) {
 
   let particles;
   let strokeWeight;
+
   let color1;
   let color2;
+  let color3;
+  let backgroundColor;
+
   let color1rgb;
   let color2rgb;
+  let color3rgb;
+  let backgroundrgb;
+
   let colorScaling;
+  let colorSpread;
+  let colorType = 0;
+
+  let fadeAmount;
+  let fadeSpeed;
 
   let paused = false;
   let prevTriggerSave = false;
   let triggerSave = false;
 
   let prevProps;
+
+  let fadeOffset = 0;
+  let fadeLastTime = 0;
 
   function triggerRedraw(prev, next) {
     redraw = prev.redraw !== next.redraw;
@@ -47,18 +65,26 @@ export default function flowfieldSketch (p) {
   function triggerRecalc(prev, next) {
     const recalcFields = [
       'particleCount',
+      'particleExpire',
       'flowCellSize',
       'flowAccuracy',
+      'flowDrift',
+      'flowDriftScale',
       'noiseScale',
       'noiseRadius',
       'noiseSeed',
       'strokeWeight',
       'colorScaling',
+      'colorSpread',
       'canvasHeight',
       'canvasWidth',
       'outer',
       'color1',
       'color2',
+      'color3',
+      'backgroundColor',
+      'fadeAmount',
+      'fadeSpeed',
     ];
     recalcFields.forEach( (field) => { if (prev[field] !== next[field]) recalc = true; });
   }
@@ -67,17 +93,25 @@ export default function flowfieldSketch (p) {
     // console.log(props);
 
     particleCount = parseInt(props.particleCount, 10);
+    particleExpire = parseInt(props.particleExpire, 10);
     flowCellSize = parseInt(props.flowCellSize, 10);
     flowAccuracy = parseInt(props.flowAccuracy, 10);
+    flowDrift = parseInt(props.flowDrift, 10);
+    flowDriftScale = parseInt(props.flowDriftScale, 10);
     noiseScale = parseFloat(props.noiseScale);
     noiseRadius = parseInt(props.noiseRadius, 10);
     noiseSeed = parseInt(props.noiseSeed, 10);
     strokeWeight = parseInt(props.strokeWeight, 10);
     colorScaling = parseInt(props.colorScaling, 10);
+    colorSpread = parseInt(props.colorSpread, 10);
     outer = parseInt(props.outer, 10);
+    fadeAmount = parseInt(props.fadeAmount, 10);
+    fadeSpeed = parseInt(props.fadeSpeed, 10);
 
     color1rgb = props.color1;
     color2rgb = props.color2;
+    color3rgb = props.color3;
+    backgroundrgb = props.backgroundColor;
 
     paused = props.paused;
     triggerSave = props.triggerSave;
@@ -101,6 +135,8 @@ export default function flowfieldSketch (p) {
 
   p.draw = () => {
 
+    const frameTime = p.millis();
+
     if ( triggerSave !== prevTriggerSave ) {
       prevTriggerSave = triggerSave;
       console.log('Save triggered.');
@@ -108,50 +144,79 @@ export default function flowfieldSketch (p) {
     }
 
     if ( !paused ) {
+
       if (recalc) {
         console.log('Recalculating systems.');
         recalc = false;
         redraw = true;
         calculateVariables();
       }
+
       if (redraw) {
         redraw = false;
         resetCanvas();
         initializeParticles();
+        // console.log(particles);
+      }
+
+      if ( flowDrift > 0 ) {
+        for ( let x=0; x < flowWidth; x++ ) {
+          for ( let y=0; y < flowHeight; y++ ) {
+            flowGrid[x][y].rotate( flowDrift * (p.noise(x / flowDriftScale, y / flowDriftScale, p.frameCount / flowDriftScale) - 0.5) / 1000 );
+          }
+        }
+      }
+
+      if (0 && p.frameCount % 10 == 0) {
+        drawFlow();
       }
 
       p.translate(-outer, -outer);
-      // p.background(0,3);
+
+      // Fade offset is a minor optimization... Update just one byte of the four
+      // background color bytes each time through. This is because (with minimal testing,
+      // and I might be wrong) array updates to the pixels array seem to be very expensive.
+      if ( fadeAmount > 0 && (frameTime - fadeLastTime > fadeSpeed) ) {
+        fadeBackground(fadeAmount, fadeOffset);
+        fadeOffset = ( fadeOffset + 1 ) % 3;
+        if (fadeOffset === 0) {
+          // console.log(`fadeComplete: ${frameTime}`)
+          fadeLastTime = frameTime;
+        }
+      }
+
+      if (particleExpire > 0) {
+        expireParticles();
+      }
       updateParticles();
       drawParticles();
-    }
-
-
-
-    if (redraw) {
-      // drawFlow();
-      // drawNoise();
-      redraw = false;
     }
   };
 
   /* Call after config changes to reset calculated variables */
 
   function calculateVariables() {
+    p.noiseSeed(noiseSeed);
+    p.randomSeed(noiseSeed);
+
     flowWidth = p.floor( (width + (outer * 2)) / flowCellSize );
     flowHeight = p.floor( (height + (outer * 2)) / flowCellSize );
 
+    p.colorMode(p.HSB);
     color1 = p.color(color1rgb);
     color2 = p.color(color2rgb);
+    color3 = p.color(color3rgb);
+    p.colorMode(p.RGB);
 
-    p.noiseSeed(noiseSeed);
-    p.randomSeed(noiseSeed);
+    // console.log('c1');
+    // console.log(color1);
+    backgroundColor = p.color(backgroundrgb);
 
     initializeFlow();
   }
 
   function resetCanvas() {
-    p.background(0);
+    p.background(backgroundColor);
     p.smooth();
     p.strokeWeight(strokeWeight);
   }
@@ -225,7 +290,7 @@ export default function flowfieldSketch (p) {
   function drawNoise() {
     const t0 = performance.now();
 
-    p.background(0);
+    p.background(backgroundColor);
     const img = p.createImage(width, height);
     img.loadPixels();
     const d = p.pixelDensity();
@@ -253,6 +318,8 @@ export default function flowfieldSketch (p) {
 
   function drawFlow() {
 
+    console.log(flowGrid);
+
     p.background(0);
     p.stroke(255);
     p.strokeWeight(1);
@@ -261,7 +328,7 @@ export default function flowfieldSketch (p) {
       for ( let y=0; y < flowHeight; y++ ) {
         const map_x = mapFlowToScreenX(x);
         const map_y = mapFlowToScreenY(y);
-        const val = flowGrid[x][y].mult(25 * flowCellSize);
+        const val = flowGrid[x][y].copy().mult(25 * flowCellSize);
         if ( map_x > 0 && map_y > 0 )
           p.line(map_x, map_y, map_x + val.x, map_y + val.y);
       }
@@ -270,26 +337,77 @@ export default function flowfieldSketch (p) {
 
   /* Particles */
 
+  function smoothstep(x) {
+    return x * x * (3 - 2 * x);
+  }
+
+  function isOut(particle) {
+    const x = particle.pos.x;
+    const y = particle.pos.y;
+
+    if ( x < outer ) return true;
+    if ( x > width + 2 * outer) return true;
+    if ( y < outer ) return true;
+    if ( y > height + 2 * outer) return true;
+
+    return false;
+  }
+
+  function createParticle(spawnTime) {
+    let rand = p.int(p.random(2));
+    const x = rand === 0 ? p.random(outer) : p.random(width + 2 * outer);
+    const y = rand === 0 ? p.random(height + 2 * outer) : p.random(outer) + height + outer;
+
+    let color;
+    if ( colorType === 1 ) {
+      const colorPoint = p.noise(x / colorScaling, y / colorScaling);
+      const stepPoint = smoothstep(smoothstep(colorPoint));
+      color = p.lerpColor(color1, color2, stepPoint);
+    }
+    else {
+      const colorPoint = p.noise(x / colorScaling, y / colorScaling);
+      const colorOffset = Math.floor( (p.noise(y / colorScaling, x / colorScaling) - 0.5) * colorSpread ) ;
+
+      console.log(colorOffset);
+
+      if ( colorPoint < 0.39 ) {
+        color = p.color( p.hue(color1) + colorOffset, p.saturation(color1), p.brightness(color1), p.alpha(color1) );
+        console.log(p.hue(color1));
+      }
+      else if ( colorPoint > 0.53 ) {
+        color = p.color( p.hue(color2) + colorOffset, p.saturation(color2), p.brightness(color2), p.alpha(color2) );
+        console.log(p.hue(color2));
+      }
+      else {
+        color = p.color( p.hue(color3) + colorOffset, p.saturation(color3), p.brightness(color3), p.alpha(color3) );
+        console.log(p.hue(color3));
+      }
+    }
+
+    console.log(color);
+
+    return {
+      prev: p.createVector(x, y),
+      pos: p.createVector(x, y),
+      vel: p.createVector(0, 0),
+      acc: p.createVector(0, 0),
+      color,
+      spawnTime,
+    };
+  }
+
   function initializeParticles() {
     console.log("Initialzing particles");
     const t0 = performance.now();
+    const spawnTime = p.millis();
+
+    p.colorMode(p.HSB);
     particles = new Array(particleCount);
     for (let i = 0; i < particleCount; i++) {
-
-      let rand = p.int(p.random(2));
-      const x = rand === 0 ? p.random(outer) : p.random(width + 2 * outer);
-      const y = rand === 0 ? p.random(height + 2 * outer) : p.random(outer) + height + outer;
-      // x = p.int(x);
-      // y = p.int(y);
-
-      particles[i] = {
-        prev: p.createVector(x, y),
-        pos: p.createVector(x, y),
-        vel: p.createVector(0, 0),
-        acc: p.createVector(0, 0),
-        color: p.lerpColor(color1, color2, p.noise(x / colorScaling, y / colorScaling)),
-      };
+      particles[i] = createParticle(spawnTime);
     }
+    p.colorMode(p.RGB);
+
     const t1 = performance.now();
     console.log("Particles initialized in " + (t1-t0) + "ms.");
   }
@@ -307,7 +425,6 @@ export default function flowfieldSketch (p) {
         .normalize()
         .mult(2);
 
-      //prt.acc = p5.Vector.fromAngle(noise(prt.seed * 10, tick) * TAU).mult(0.01);
       prt.prev.x = prt.pos.x;
       prt.prev.y = prt.pos.y;
 
@@ -323,6 +440,50 @@ export default function flowfieldSketch (p) {
         p.line(particles[i].prev.x, particles[i].prev.y, particles[i].pos.x, particles[i].pos.y);
     }
   }
+
+  function expireParticles() {
+    // console.log("Expiring particles");
+    // const t0 = performance.now();
+    const now = p.millis();
+    const checkTime = now - ( particleExpire * 1000);
+    let count = 0;
+    for (let i = 0; i < particleCount; i++) {
+      if ( particles[i].spawnTime < checkTime && isOut(particles[i]) ) {
+        particles[i] = createParticle(now);
+        count++;
+      }
+    }
+    // const t1 = performance.now();
+    // if (count > 0) {
+    //   console.log(`Expired ${count} in ${t1-t0}ms.`);
+    // }
+  }
+
+  /* Background */
+
+  /* TODO  : this needs to be background color aware. */
+  function fadeBackground(fade, offset) {
+    const t0 = performance.now();
+    p.loadPixels();
+    const t1 = performance.now();
+    const d = p.pixelDensity();
+    const max = 4 * width * d * height * d;
+    const pixels = p.pixels;
+    for ( let i=0; i < max; i+=4 ) {
+      let val = pixels[i + offset];
+      if ( val > 0 )
+        pixels[i + offset] = val > fade ? val - fade : 0;
+    }
+    const t2 = performance.now();
+    p.updatePixels();
+    const t3 = performance.now();
+
+    // console.log(`fade load: ${t1-t0}`);
+    // console.log(`fade change: ${t2-t1}`);
+    // console.log(`fade update: ${t3-t2}`);
+  }
+
+  /* Utilities */
 
   function mod(x, n) {
     // return x % n;
