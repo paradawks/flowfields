@@ -118,15 +118,16 @@ export default function flowfieldSketch (p) {
 
     triggerRedraw(prevProps || {}, props);
     triggerRecalc(prevProps || {}, props);
-    prevProps = {...props};
 
-    if ( props.canvasWidth !== width || props.canvasHeight !== height ) {
-      width = parseInt(props.canvasWidth, 10);
-      height = parseInt(props.canvasHeight, 10);
-      recalc = true;
+    const newWidth = parseInt(props.canvasWidth, 10);
+    const newHeight = parseInt(props.canvasWidth, 10);
+    if ( width !== newWidth || height !== newHeight ) {
+      width = newWidth;
+      height = newHeight;
       p.resizeCanvas(width, height);
     }
 
+    prevProps = {...props};
   };
 
   p.setup = () => {
@@ -368,23 +369,16 @@ export default function flowfieldSketch (p) {
       const colorPoint = p.noise(x / colorScaling, y / colorScaling);
       const colorOffset = Math.floor( (p.noise(y / colorScaling, x / colorScaling) - 0.5) * colorSpread ) ;
 
-      console.log(colorOffset);
-
       if ( colorPoint < 0.39 ) {
         color = p.color( p.hue(color1) + colorOffset, p.saturation(color1), p.brightness(color1), p.alpha(color1) );
-        console.log(p.hue(color1));
       }
       else if ( colorPoint > 0.53 ) {
         color = p.color( p.hue(color2) + colorOffset, p.saturation(color2), p.brightness(color2), p.alpha(color2) );
-        console.log(p.hue(color2));
       }
       else {
         color = p.color( p.hue(color3) + colorOffset, p.saturation(color3), p.brightness(color3), p.alpha(color3) );
-        console.log(p.hue(color3));
       }
     }
-
-    console.log(color);
 
     return {
       prev: p.createVector(x, y),
